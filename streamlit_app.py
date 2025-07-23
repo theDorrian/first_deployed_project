@@ -53,4 +53,4 @@ for name, model in models.items():
   })
 
 st.write("### Сравнение моделей по точности")
-st.table(pd.DataFrame(results))
+st.table(pd.DataFrame(result))
