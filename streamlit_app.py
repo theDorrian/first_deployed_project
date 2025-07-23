@@ -36,7 +36,7 @@ X_train_encoded = encoder.fit_transform(X_train, y_train)
 X_test_encoded = encoder.transform(X_test)
 
 models = {
-  "Decision Tree": DecisionTreeClassifier(random_state = 42)
+  "Decision Tree": DecisionTreeClassifier(random_state = 42),
   "KNN" : KNeighborsClassifier()
 }
 
