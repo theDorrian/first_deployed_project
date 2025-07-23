@@ -54,3 +54,30 @@ for name, model in models.items():
 
 st.write("### Сравнение моделей по точности")
 st.table(pd.DataFrame(result))
+
+
+
+st.slidebar.header("Предсказание по параметрам")
+island_input = st.slidebar.selectbox("Остров", df["island"].unique())
+sex_input = st.slidebar.selectbox("Пол", df["sex"].unique())
+bill_length = st.slidebar.slider("Длина клюва (mm)", float(df["bill_length_mm"].min()), float(df["bill_length_mm"].max()), float(df["bill_length_mm"].mean()))
+bill_depth = st.slidebar.slider("Глубина клюва (mm)", float(df["bill_depth_mm"].min()), float(df["bill_depth_mm"].max()), float(df["bill_depth_mm"].mean()))
+flipper_length = st.slidebar.slider("Длина Крыла (mm)", float(df["flipper_length_mm"].min()), float(df["flipper_length_mm"].max()), float(df["flipper_length_mm"].mean()))
+body_mass = st.slidebar.slider("Масса тела (g)", float(df["body_mass_g"].min()), float(df["body_mass_g"].max()), float(df["body_mass_g"].mean()))
+
+user_input = pd.DataFrame([{
+  "island": island_input,
+  "sex": sex_input,
+  "bill_length_mm" : bill_length,
+  "bill_depth_mm": bill_depth,
+  "flipper_length_mm": flipper_length,
+  "body_mass_g": body_mass
+}])
+
+user_encoded = encoder.transform(user_input)
+for col in ["bill_length_mm", "bill_depth_mm", "flipper_length_mm", "body_mass_g"]:
+  user_encoded[col] = user_input[col].values
+user_encoded = user_encoded[X_train_encoded.columns]
+                                 
+
+
