@@ -1,3 +1,5 @@
+# streamlit_app.py
+
 import streamlit as st
 import pandas as pd
 import pickle
@@ -8,9 +10,8 @@ from sklearn.metrics import (
     classification_report,
 )
 
-DATA_URL = (
-    "https://raw.githubusercontent.com/datasciencedojo/datasets/master/titanic.csv"
-)
+# --- Константы ---
+DATA_URL = "https://raw.githubusercontent.com/datasciencedojo/datasets/master/titanic.csv"
 MODEL_PATH = "best_model.pkl"
 MODEL_FEATURES = [
     "Pclass",
@@ -27,31 +28,29 @@ st.set_page_config(page_title="🚢 Titanic Survival Predictor", layout="wide")
 
 @st.cache_data
 def load_data():
-    df = pd.read_csv(DATA_URL)
-    return df
+    return pd.read_csv(DATA_URL)
 
 @st.cache_resource
 def load_model():
     with open(MODEL_PATH, "rb") as f:
-        model = pickle.load(f)
-    return model
+        return pickle.load(f)
 
 def preprocess(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
-    # 1) Заполняем пропуски
     df["Age"].fillna(df["Age"].median(), inplace=True)
     df["Fare"].fillna(df["Fare"].median(), inplace=True)
     df["Embarked"].fillna(df["Embarked"].mode()[0], inplace=True)
-    # 2) Кодируем пол
     df["Sex"] = df["Sex"].map({"male": 0, "female": 1})
-    # 3) One-hot для порта посадки
     df = pd.get_dummies(df, columns=["Embarked"], drop_first=True)
-    # 4) Гарантируем, что обе колонки есть
     for col in ["Embarked_Q", "Embarked_S"]:
         if col not in df.columns:
             df[col] = 0
-    # 5) Отбираем нужные фичи в нужном порядке
     return df[MODEL_FEATURES]
+
+@st.cache_data
+def get_preview(df: pd.DataFrame) -> pd.DataFrame:
+    # возвращаем фиксированный сэмпл из 10 строк
+    return df.sample(10, random_state=42)
 
 # --- Основной код ---
 df = load_data()
@@ -71,12 +70,9 @@ y_all = df["Survived"]
 y_pred_all = model.predict(X_all)
 y_proba_all = model.predict_proba(X_all)[:, 1]
 
-acc = accuracy_score(y_all, y_pred_all)
-rocauc = roc_auc_score(y_all, y_proba_all)
-
 col1, col2 = st.columns(2)
-col1.metric("Accuracy", f"{acc:.3f}")
-col2.metric("ROC AUC", f"{rocauc:.3f}")
+col1.metric("Accuracy", f"{accuracy_score(y_all, y_pred_all):.3f}")
+col2.metric("ROC AUC", f"{roc_auc_score(y_all, y_proba_all):.3f}")
 
 st.write("**Confusion Matrix**")
 st.write(confusion_matrix(y_all, y_pred_all))
@@ -88,7 +84,8 @@ st.write("---")
 
 # === Блок 2: Превью данных ===
 st.subheader("🗂 Превью исходного датасета")
-st.dataframe(df.sample(10), use_container_width=True)
+preview = get_preview(df)
+st.dataframe(preview, use_container_width=True)
 
 st.write("---")
 
@@ -104,7 +101,6 @@ parch = st.sidebar.number_input("Parch", min_value=int(df["Parch"].min()), max_v
 fare = st.sidebar.number_input("Fare", float(df["Fare"].min()), float(df["Fare"].max()), float(df["Fare"].median()))
 embarked = st.sidebar.selectbox("Embarked", ["C", "Q", "S"])
 
-# Собираем DataFrame для одного пассажира
 new_passenger = pd.DataFrame([{
     "Pclass": pclass,
     "Sex": sex,
@@ -115,7 +111,6 @@ new_passenger = pd.DataFrame([{
     "Embarked": embarked,
 }])
 
-# Предобработка и предсказание
 X_new = preprocess(new_passenger)
 pred = model.predict(X_new)[0]
 proba = model.predict_proba(X_new)[0, 1]
