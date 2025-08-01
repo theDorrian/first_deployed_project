@@ -3,25 +3,13 @@
 import streamlit as st
 import pandas as pd
 import pickle
-from sklearn.metrics import (
-    accuracy_score,
-    roc_auc_score,
-    confusion_matrix,
-    classification_report,
-)
+from sklearn.metrics import accuracy_score, roc_auc_score, confusion_matrix, classification_report
 
 # --- Константы ---
 DATA_URL = "https://raw.githubusercontent.com/datasciencedojo/datasets/master/titanic.csv"
 MODEL_PATH = "best_model.pkl"
 MODEL_FEATURES = [
-    "Pclass",
-    "Sex",
-    "Age",
-    "SibSp",
-    "Parch",
-    "Fare",
-    "Embarked_Q",
-    "Embarked_S",
+    "Pclass", "Sex", "Age", "SibSp", "Parch", "Fare", "Embarked_Q", "Embarked_S"
 ]
 
 st.set_page_config(page_title="🚢 Titanic Survival Predictor", layout="wide")
@@ -47,14 +35,15 @@ def preprocess(df: pd.DataFrame) -> pd.DataFrame:
             df[col] = 0
     return df[MODEL_FEATURES]
 
-@st.cache_data
-def get_preview(df: pd.DataFrame) -> pd.DataFrame:
-    # возвращаем фиксированный сэмпл из 10 строк
-    return df.sample(10, random_state=42)
-
 # --- Основной код ---
 df = load_data()
 model = load_model()
+
+# Сэмплируем одного случайного пассажира при первом заходе
+if "sample_passenger" not in st.session_state:
+    st.session_state.sample_passenger = df.sample(1).iloc[0]
+
+sample = st.session_state.sample_passenger
 
 st.title("🚢 Titanic Survival Predictor")
 st.write(
@@ -63,8 +52,8 @@ st.write(
     """
 )
 
-# === Блок 1: Метрики на всем датасете ===
-st.subheader("📊 Качество модели на всем датасете")
+# === Блок 1: Метрики на всём датасете ===
+st.subheader("📊 Качество модели на всём датасете")
 X_all = preprocess(df)
 y_all = df["Survived"]
 y_pred_all = model.predict(X_all)
@@ -76,31 +65,47 @@ col2.metric("ROC AUC", f"{roc_auc_score(y_all, y_proba_all):.3f}")
 
 st.write("**Confusion Matrix**")
 st.write(confusion_matrix(y_all, y_pred_all))
-
 st.write("**Classification Report**")
 st.text(classification_report(y_all, y_pred_all))
-
 st.write("---")
 
 # === Блок 2: Превью данных ===
-st.subheader("🗂 Превью исходного датасета")
+st.subheader("🗂 Превью исходного датасета (фиксированная выборка)")
+@st.cache_data
+def get_preview(data):
+    return data.sample(10, random_state=42)
+
 preview = get_preview(df)
 st.dataframe(preview, use_container_width=True)
-
 st.write("---")
 
 # === Блок 3: Интерактивное предсказание ===
 st.sidebar.header("🧑‍✈️ Ввод параметров пассажира")
 
-pclass = st.sidebar.selectbox("Pclass", sorted(df["Pclass"].unique()))
-sex = st.sidebar.selectbox("Sex", ["male", "female"])
-sex = 0 if sex == "male" else 1
-age = st.sidebar.slider("Age", float(df["Age"].min()), float(df["Age"].max()), float(df["Age"].median()))
-sibsp = st.sidebar.number_input("SibSp", min_value=int(df["SibSp"].min()), max_value=int(df["SibSp"].max()), value=0)
-parch = st.sidebar.number_input("Parch", min_value=int(df["Parch"].min()), max_value=int(df["Parch"].max()), value=0)
-fare = st.sidebar.number_input("Fare", float(df["Fare"].min()), float(df["Fare"].max()), float(df["Fare"].median()))
-embarked = st.sidebar.selectbox("Embarked", ["C", "Q", "S"])
+# Подготовим списки опций
+pclass_opts = sorted(df["Pclass"].unique())
+sex_opts    = ["male", "female"]
+embark_opts = ["C", "Q", "S"]
 
+# Значения по умолчанию из sample
+pclass_def  = int(sample["Pclass"])
+sex_def     = sample["Sex"]
+age_def     = float(sample["Age"])
+sibsp_def   = int(sample["SibSp"])
+parch_def   = int(sample["Parch"])
+fare_def    = float(sample["Fare"])
+embark_def  = sample["Embarked"]
+
+# Виджеты с дефолтами
+pclass = st.sidebar.selectbox("Pclass", pclass_opts, index=pclass_opts.index(pclass_def))
+sex    = st.sidebar.selectbox("Sex", sex_opts, index=sex_opts.index(sex_def))
+age    = st.sidebar.slider("Age", float(df["Age"].min()), float(df["Age"].max()), age_def)
+sibsp  = st.sidebar.number_input("SibSp", min_value=int(df["SibSp"].min()), max_value=int(df["SibSp"].max()), value=sibsp_def)
+parch  = st.sidebar.number_input("Parch", min_value=int(df["Parch"].min()), max_value=int(df["Parch"].max()), value=parch_def)
+fare   = st.sidebar.number_input("Fare", float(df["Fare"].min()), float(df["Fare"].max()), value=fare_def)
+embarked = st.sidebar.selectbox("Embarked", embark_opts, index=embark_opts.index(embark_def))
+
+# Составляем DataFrame для предсказания
 new_passenger = pd.DataFrame([{
     "Pclass": pclass,
     "Sex": sex,
@@ -117,4 +122,4 @@ proba = model.predict_proba(X_new)[0, 1]
 
 st.sidebar.subheader("📋 Результат предсказания")
 st.sidebar.markdown(f"**Выживет:** {'Да' if pred == 1 else 'Нет'}")
-st.sidebar.markdown(f"**Вероятность выживания:** {proba:.2f}")
+st.sidebar.markdown(f"**Вероятность выживания:** {proba:.3f}")
