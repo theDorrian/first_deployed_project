@@ -3,13 +3,16 @@
 import streamlit as st
 import pandas as pd
 import pickle
-from sklearn.metrics import accuracy_score, roc_auc_score, confusion_matrix, classification_report
+from sklearn.metrics import (
+    accuracy_score, roc_auc_score,
+    confusion_matrix, classification_report
+)
 
 # --- Константы ---
 DATA_URL = "https://raw.githubusercontent.com/datasciencedojo/datasets/master/titanic.csv"
 MODEL_PATH = "best_model.pkl"
 MODEL_FEATURES = [
-    "Pclass", "Sex", "Age", "SibSp", "Parch", "Fare", "Embarked_Q", "Embarked_S"
+    "Pclass","Sex","Age","SibSp","Parch","Fare","Embarked_Q","Embarked_S"
 ]
 
 st.set_page_config(page_title="🚢 Titanic Survival Predictor", layout="wide")
@@ -25,75 +28,65 @@ def load_model():
 
 def preprocess(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
-    # 1) Заполняем пропуски
     df["Age"].fillna(df["Age"].median(), inplace=True)
     df["Fare"].fillna(df["Fare"].median(), inplace=True)
     df["Embarked"].fillna(df["Embarked"].mode()[0], inplace=True)
-    # 2) Кодируем пол
-    df["Sex"] = df["Sex"].map({"male": 0, "female": 1})
-    # 3) One-hot для порта посадки
+    df["Sex"] = df["Sex"].map({"male":0,"female":1})
     df = pd.get_dummies(df, columns=["Embarked"], drop_first=True)
-    # 4) Гарантируем, что обе колонки есть
-    for col in ["Embarked_Q", "Embarked_S"]:
-        if col not in df.columns:
-            df[col] = 0
-    # 5) Отбираем нужные фичи
+    for c in ["Embarked_Q","Embarked_S"]:
+        if c not in df.columns: df[c]=0
     return df[MODEL_FEATURES]
 
 @st.cache_data
 def get_preview(df: pd.DataFrame) -> pd.DataFrame:
-    return df.sample(10, random_state=42)
+    # Убираем строки с NaN в ключевых полях
+    df_clean = df.dropna(subset=["Age","Fare","Embarked"])
+    # Возвращаем фиксированный сэмпл
+    return df_clean.sample(10, random_state=42)
 
 # --- Основной код ---
 df = load_data()
 model = load_model()
 
-# Сэмплируем одного пассажира БЕЗ пропусков в Age, Fare, Embarked
+# Фиксированный «рандомный» пассажир для дефолтных виджетов
 if "sample_passenger" not in st.session_state:
-    df_nonull = df.dropna(subset=["Age", "Fare", "Embarked"])
+    df_nonull = df.dropna(subset=["Age","Fare","Embarked"])
     st.session_state.sample_passenger = df_nonull.sample(1, random_state=42).iloc[0]
-
 sample = st.session_state.sample_passenger
 
 st.title("🚢 Titanic Survival Predictor")
-st.write(
-    """
-    Приложение загружает заранее обученную модель (`best_model.pkl`)
-    и делает предсказания выживания пассажиров Titanic.
-    """
-)
+st.write("Модель загружена из `best_model.pkl`, превью и предсказания по пассажиру.")
 
-# === 1) Метрики на всём датасете ===
-st.subheader("📊 Качество модели на всём датасете")
+# — Метрики на всем датасете —
+st.subheader("📊 Качество модели")
 X_all = preprocess(df)
 y_all = df["Survived"]
-y_pred_all = model.predict(X_all)
-y_proba_all = model.predict_proba(X_all)[:, 1]
+y_pred = model.predict(X_all)
+y_proba = model.predict_proba(X_all)[:,1]
 
 col1, col2 = st.columns(2)
-col1.metric("Accuracy", f"{accuracy_score(y_all, y_pred_all):.3f}")
-col2.metric("ROC AUC", f"{roc_auc_score(y_all, y_proba_all):.3f}")
+col1.metric("Accuracy", f"{accuracy_score(y_all,y_pred):.3f}")
+col2.metric("ROC AUC", f"{roc_auc_score(y_all,y_proba):.3f}")
 
 st.write("**Confusion Matrix**")
-st.write(confusion_matrix(y_all, y_pred_all))
-
+st.write(confusion_matrix(y_all, y_pred))
 st.write("**Classification Report**")
-st.text(classification_report(y_all, y_pred_all))
+st.text(classification_report(y_all, y_pred))
 st.write("---")
 
-# === 2) Превью данных ===
-st.subheader("🗂 Превью исходного датасета (фиксированная выборка)")
+# — Превью исходного датасета —
+st.subheader("🗂 Превью исходного датасета")
 preview = get_preview(df)
 st.dataframe(preview, use_container_width=True)
 st.write("---")
 
-# === 3) Интерактивное предсказание ===
+# — Интерактивное предсказание —
 st.sidebar.header("🧑‍✈️ Ввод параметров пассажира")
 
-# Опции и дефолты из sample (теперь гарантированно числовые!)
-pclass_opts = sorted(df["Pclass"].unique())
-sex_opts    = ["male", "female"]
-embark_opts = ["C", "Q", "S"]
+# Опции и дефолты
+opts_pclass = sorted(df["Pclass"].unique())
+opts_sex    = ["male","female"]
+opts_emb   = ["C","Q","S"]
 
 pclass_def = int(sample["Pclass"])
 sex_def    = sample["Sex"]
@@ -101,30 +94,25 @@ age_def    = float(sample["Age"])
 sibsp_def  = int(sample["SibSp"])
 parch_def  = int(sample["Parch"])
 fare_def   = float(sample["Fare"])
-embark_def = sample["Embarked"]
+emb_def    = sample["Embarked"]
 
-pclass = st.sidebar.selectbox("Pclass", pclass_opts, index=pclass_opts.index(pclass_def))
-sex    = st.sidebar.selectbox("Sex", sex_opts, index=sex_opts.index(sex_def))
+pclass = st.sidebar.selectbox("Pclass", opts_pclass, index=opts_pclass.index(pclass_def))
+sex    = st.sidebar.selectbox("Sex", opts_sex, index=opts_sex.index(sex_def))
 age    = st.sidebar.slider("Age", float(df["Age"].min()), float(df["Age"].max()), age_def)
-sibsp  = st.sidebar.number_input("SibSp", min_value=int(df["SibSp"].min()), max_value=int(df["SibSp"].max()), value=sibsp_def)
-parch  = st.sidebar.number_input("Parch", min_value=int(df["Parch"].min()), max_value=int(df["Parch"].max()), value=parch_def)
+sibsp  = st.sidebar.number_input("SibSp", int(df["SibSp"].min()), int(df["SibSp"].max()), value=sibsp_def)
+parch  = st.sidebar.number_input("Parch", int(df["Parch"].min()), int(df["Parch"].max()), value=parch_def)
 fare   = st.sidebar.number_input("Fare", float(df["Fare"].min()), float(df["Fare"].max()), value=fare_def)
-embarked = st.sidebar.selectbox("Embarked", embark_opts, index=embark_opts.index(embark_def))
+emb    = st.sidebar.selectbox("Embarked", opts_emb, index=opts_emb.index(emb_def))
 
-new_passenger = pd.DataFrame([{
-    "Pclass": pclass,
-    "Sex": sex,
-    "Age": age,
-    "SibSp": sibsp,
-    "Parch": parch,
-    "Fare": fare,
-    "Embarked": embarked,
+new_df = pd.DataFrame([{
+    "Pclass":pclass, "Sex":sex, "Age":age,
+    "SibSp":sibsp, "Parch":parch, "Fare":fare,
+    "Embarked":emb
 }])
-
-X_new = preprocess(new_passenger)
+X_new = preprocess(new_df)
 pred  = model.predict(X_new)[0]
-proba = model.predict_proba(X_new)[0, 1]
+prob  = model.predict_proba(X_new)[0,1]
 
 st.sidebar.subheader("📋 Результат предсказания")
 st.sidebar.markdown(f"**Выживет:** {'Да' if pred==1 else 'Нет'}")
-st.sidebar.markdown(f"**Вероятность выживания:** {proba:.3f}")
+st.sidebar.markdown(f"**Вероятность:** {prob:.3f}")
