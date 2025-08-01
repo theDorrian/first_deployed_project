@@ -8,7 +8,7 @@ from sklearn.metrics import (
     confusion_matrix, classification_report
 )
 
-# --- Константы ---
+
 DATA_URL = "https://raw.githubusercontent.com/datasciencedojo/datasets/master/titanic.csv"
 MODEL_PATH = "best_model.pkl"
 MODEL_FEATURES = [
@@ -28,37 +28,37 @@ def load_model():
 
 def preprocess(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
-    # Заполняем пропуски
+
     df["Age"].fillna(df["Age"].median(), inplace=True)
     df["Fare"].fillna(df["Fare"].median(), inplace=True)
     df["Embarked"].fillna(df["Embarked"].mode()[0], inplace=True)
-    # Кодируем пол
+
     df["Sex"] = df["Sex"].map({"male": 0, "female": 1})
-    # One-hot для порта посадки
+
     df = pd.get_dummies(df, columns=["Embarked"], drop_first=True)
-    # Добавляем отсутствующие колонки, если нужно
+
     for c in ["Embarked_Q", "Embarked_S"]:
         if c not in df.columns:
             df[c] = 0
-    # Оставляем только модельные фичи
+
     return df[MODEL_FEATURES]
 
 @st.cache_data
 def get_preview(df: pd.DataFrame) -> pd.DataFrame:
-    # Отсеиваем строки с NaN в ключевых столбцах
+
     df_clean = df.dropna(subset=["Age", "Fare", "Embarked"])
-    # Удаляем лишние колонки, чтобы в превью не было NaN по Cabin и т.д.
+
     df_clean = df_clean.drop(
         columns=["Cabin", "Ticket", "Name", "PassengerId"], errors="ignore"
     )
-    # Фиксированный сэмпл
+
     return df_clean.sample(10, random_state=42)
 
-# --- Основной код ---
+
 df = load_data()
 model = load_model()
 
-# Фиксированный «рандом» для дефолтов виджетов (без NaN в Age/Fare/Embarked)
+
 if "sample_passenger" not in st.session_state:
     df_nonull = df.dropna(subset=["Age", "Fare", "Embarked"])
     st.session_state.sample_passenger = df_nonull.sample(1, random_state=42).iloc[0]
@@ -67,7 +67,7 @@ sample = st.session_state.sample_passenger
 st.title("🚢 Titanic Survival Predictor")
 st.write("Модель загружена из `best_model.pkl`. Смотрим превью и делаем предсказания.")
 
-# --- Блок 1: Метрики на всём датасете ---
+
 st.subheader("📊 Качество модели на всём датасете")
 X_all = preprocess(df)
 y_all = df["Survived"]
@@ -84,16 +84,16 @@ st.write("**Classification Report**")
 st.text(classification_report(y_all, y_pred_all))
 st.write("---")
 
-# --- Блок 2: Превью исходного датасета ---
+
 st.subheader("🗂 Превью исходного датасета")
 preview = get_preview(df)
 st.dataframe(preview, use_container_width=True)
 st.write("---")
 
-# --- Блок 3: Интерактивное предсказание ---
+
 st.sidebar.header("🧑‍✈️ Ввод параметров пассажира")
 
-# Опции и дефолты
+
 opts_pclass = sorted(df["Pclass"].unique())
 opts_sex    = ["male", "female"]
 opts_emb    = ["C", "Q", "S"]
